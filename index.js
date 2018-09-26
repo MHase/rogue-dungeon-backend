@@ -7,12 +7,16 @@ const app = express();
 const server = require('http').createServer(app);
 const io = require('socket.io')(server);
 
+require('dotenv').config()
+
 // app.use(express.static('build')); // make whole build folder public so we can access files inside
 
 // app.get('/', (req, res) => {
 //   res.sendFile(path.join(__dirname, 'index.html'));
 // });
 // we will create standalone server on herokku
+
+console.log(process.env);
 
 server.listen(process.env.PORT || 8081, () => { // gives us any avaiable port provided by heroku or listens to port 8081
   console.log('Listening on', server.address().port);
