@@ -7,8 +7,6 @@ const app = express();
 const server = require('http').createServer(app);
 const io = require('socket.io')(server);
 
-require('dotenv').config()
-
 // app.use(express.static('build')); // make whole build folder public so we can access files inside
 
 // app.get('/', (req, res) => {
