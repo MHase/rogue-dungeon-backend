@@ -71,20 +71,49 @@ io.on('connection', (socket) => {
       name: socket.request._query.name, // random name created on frontend side of app
     };
 
-    addPlayer();
+    addPlayer(socket.player);
   })
+  console.log(io.sockets.connected);
 
-  function addPlayer() {
-    socket.player = { ...socket.player, ...defaultCoords }
-    console.log('sending new player!');
-    io.to(`${socket.id}`).emit('self_joined', socket.player); // sending to individual socketid (private message) about new player
-    socket.broadcast.emit('user_joined', socket.player); // lete everyone else spawn new player
+  function addPlayer(player) {
+    if (player.name === socket.player.name) { // if player died because of himself
+      socket.player = { ...socket.player, ...defaultCoords };
+      socket.emit('self_joined', socket.player);
+      socket.broadcast.emit('user_joined', socket.player);
+    } else { // if he was shot
+      const newPlayerData = { ...player, ...defaultCoords, last_move: moment() };
+      const newPlayerSocketId = findPlayerSocketIdByName(player.name);
+      io.sockets.connected[newPlayerSocketId].player = newPlayerData;
+
+      io.to(`${newPlayerSocketId}`).emit('self_joined', newPlayerData);
+      Object.keys(io.sockets.connected)
+        .filter(socketId => socketId !== newPlayerSocketId)
+        .map(filteredSocketId => {
+          io.to(`${filteredSocketId}`).emit('user_joined', newPlayerData);
+        });
+    }
+    // socket.player = { ...socket.player, ...defaultCoords }
+    // console.log(player);
+    // const newPlayerData = { ...player, ...defaultCoords };
+    // console.log('sending new player!', newPlayerData);
+    // const newPlayerSocketId = findPlayerSocketIdByName(player.name);
+    // if (socket.player.name === player.name) {
+    //   socket.player = { ...socket.player, ...defaultCoords };
+    // }
+    // io.sockets.connected[newPlayerSocketId].player = newPlayerData;
+    // io.to(`${newPlayerSocketId}`).emit('self_joined', newPlayerData); // sending to individual socketid (private message) about new player
+    // Object.keys(io.sockets.connected).filter(socketId => ![newPlayerSocketId].includes(socketId)).map(socket => {
+    //   io.to(`${socket}`).emit('user_joined', newPlayerData);
+    // })
+
+    // socket.broadcast.emit('user_joined', newPlayerData); // lete everyone else spawn new player
   }
 
   function lose(data) {
+    console.log('lose', data);
     io.emit('lose', data);
     setTimeout(() => {
-      addPlayer();
+      addPlayer(data);
     }, 5000);
   }
 
@@ -129,9 +158,9 @@ io.on('connection', (socket) => {
   })
 
   socket.on('hit', (hitData) => {
-    // CHECK IF THERE IS ANY OBSTACLE ON THE WAY
     const playerSockedId = findPlayerSocketIdByName(hitData.username);
     let user = io.sockets.connected[playerSockedId].player;
+    console.log(user);
     let newCoords = { x: user.x, y: user.y };
 
     const move_time = Math.round(100000 / (2 * (user.speed - 1) + 120));
@@ -161,12 +190,8 @@ io.on('connection', (socket) => {
     }
 
     newCoords = _checkForObstacleLoop(newCoords, hitData.dir, (['n', 'w'].includes(hitData.dir)) ? -1 : 1);
-    // if (hitData.dir === 'n') newCoords.y -= hitDistance;
-    // if (hitData.dir === 'e') newCoords.x += hitDistance;
-    // if (hitData.dir === 'w') newCoords.x -= hitDistance;
-    // if (hitData.dir === 's') newCoords.y += hitDistance;
 
-    const emitData = { ...newCoords, name: user.name, move_time };
+    const emitData = { ...newCoords, name: user.name, move_time, speed: user.speed };
     io.sockets.connected[playerSockedId].player = updateUserPosition(user, { ...newCoords })
     if (data.data[newCoords.y][newCoords.x] < 0) { // if user is outside of the map he/she loses
       lose(emitData);
