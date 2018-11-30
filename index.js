@@ -1,13 +1,13 @@
-const data = require('./level');
-const express = require('express');
-const moment = require('moment');
-const path = require('path');
+const data = require("./level");
+const express = require("express");
+const moment = require("moment");
+const path = require("path");
 
 const app = express();
-const server = require('http').createServer(app);
-const io = require('socket.io')(server);
+const server = require("http").createServer(app);
+const io = require("socket.io")(server);
 
-require('dotenv').config()
+require("dotenv").config();
 
 // app.use(express.static('build')); // make whole build folder public so we can access files inside
 
@@ -27,7 +27,7 @@ server.lastPlayerID = -1; // Keep track of the last id assigned to a new player
 
 function getAllPlayers() {
   const players = [];
-  Object.keys(io.sockets.connected).map((socketID) => {
+  Object.keys(io.sockets.connected).map(socketID => {
     const player = io.sockets.connected[socketID].player; // eslint-disable-line
     if (player) players.push(player);
     return null;
@@ -36,22 +36,22 @@ function getAllPlayers() {
 }
 
 function playerOnXY({ x, y }) {
-  return getAllPlayers().find((player) => {
+  return getAllPlayers().find(player => {
     return player.x === x && player.y === y;
-  })
+  });
 }
 
-function updateUserPosition(user, {x, y}) {
+function updateUserPosition(user, { x, y }) {
   return {
     ...user,
     x,
     y,
-    last_move: moment(),
-  }
+    last_move: moment()
+  };
 }
 
 function findPlayerSocketIdByName(name) {
-  return Object.keys(io.sockets.connected).find((socketID) => {
+  return Object.keys(io.sockets.connected).find(socketID => {
     const player = io.sockets.connected[socketID].player;
     return player.name === name;
   });
@@ -78,7 +78,8 @@ io.on('connection', (socket) => {
   console.log(io.sockets.connected);
 
   function addPlayer(player) {
-    if (player.name === socket.player.name) { // if player died because of himself
+    if (player.name === socket.player.name) {
+      // if player died because of himself
       socket.player = { ...socket.player, ...defaultCoords };
       socket.emit('self_joined', socket.player);
       socket.broadcast.emit('user_joined', socket.player);
@@ -87,11 +88,11 @@ io.on('connection', (socket) => {
       const newPlayerSocketId = findPlayerSocketIdByName(player.name);
       io.sockets.connected[newPlayerSocketId].player = newPlayerData;
 
-      io.to(`${newPlayerSocketId}`).emit('self_joined', newPlayerData);
+      io.to(`${newPlayerSocketId}`).emit("self_joined", newPlayerData);
       Object.keys(io.sockets.connected)
         .filter(socketId => socketId !== newPlayerSocketId)
         .map(filteredSocketId => {
-          io.to(`${filteredSocketId}`).emit('user_joined', newPlayerData);
+          io.to(`${filteredSocketId}`).emit("user_joined", newPlayerData);
         });
     }
     // socket.player = { ...socket.player, ...defaultCoords }
@@ -122,7 +123,7 @@ io.on('connection', (socket) => {
   // .broadcast.emit sends a message to all connected sockets, except the socket who triggered the callback
   // .emit sends a message to all connected sockets
 
-  socket.on('move', dirObject => {
+  socket.on("move", dirObject => {
     let user = socket.player;
     const move_time = Math.round(100000 / (2 * (user.speed - 1) + 120));
 
@@ -133,33 +134,37 @@ io.on('connection', (socket) => {
 
     const newCoords = { x: user.x, y: user.y };
 
-    dirObject.dir === 'n' && newCoords.y--;
-    dirObject.dir === 'e' && newCoords.x++;
-    dirObject.dir === 'w' && newCoords.x--;
-    dirObject.dir === 's' && newCoords.y++;
+    dirObject.dir === "n" && newCoords.y--;
+    dirObject.dir === "e" && newCoords.x++;
+    dirObject.dir === "w" && newCoords.x--;
+    dirObject.dir === "s" && newCoords.y++;
     if (playerOnXY(newCoords)) {
       return;
     }
 
     const emitData = { ...newCoords, name: user.name, move_time };
-    socket.player = updateUserPosition(user, { ...newCoords })
-    if (data.data[newCoords.y][newCoords.x] < 0) { // if user is outside of the map he/she loses
+    socket.player = updateUserPosition(user, { ...newCoords });
+    if (data.data[newCoords.y][newCoords.x] < 0) {
+      // if user is outside of the map he/she loses
       lose(emitData);
     } else {
-      io.emit('move', emitData); // else he can move
+      io.emit("move", emitData); // else he can move
     }
   });
 
-  socket.on('turn', dirObject => {
+  socket.on("turn", dirObject => {
     const direction = dirObject.dir;
-    socket.broadcast.emit('turn', { ...socket.player, dir: direction})
-  })
+    socket.broadcast.emit("turn", { ...socket.player, dir: direction });
+  });
 
-  socket.on('fire', (fireData) => {
-    socket.broadcast.emit('fire', { ...fireData, username: socket.player.name })
-  })
+  socket.on("fire", fireData => {
+    socket.broadcast.emit("fire", {
+      ...fireData,
+      username: socket.player.name
+    });
+  });
 
-  socket.on('hit', (hitData) => {
+  socket.on("hit", hitData => {
     const playerSockedId = findPlayerSocketIdByName(hitData.username);
     let user = io.sockets.connected[playerSockedId].player;
     console.log(user);
@@ -173,19 +178,16 @@ io.on('connection', (socket) => {
     }
 
     _checkForObstacleLoop = (coords, direction, increment) => {
-      const horizontalDirection = ['e', 'w'].includes(direction);
+      const horizontalDirection = ["e", "w"].includes(direction);
       let checkCoords = JSON.parse(JSON.stringify(coords));
       let finalCoords = JSON.parse(JSON.stringify(coords));
 
-      for(let i = 1; i <= hitDistance; i++) {
-        if(horizontalDirection)
+      for (let i = 1; i <= hitDistance; i++) {
+        if (horizontalDirection)
           checkCoords = { x: checkCoords.x + increment, y: checkCoords.y };
-        else
-          checkCoords = { x: checkCoords.x, y: checkCoords.y + increment };
+        else checkCoords = { x: checkCoords.x, y: checkCoords.y + increment };
 
-
-        if (!playerOnXY(checkCoords))
-          finalCoords = checkCoords;
+        if (!playerOnXY(checkCoords)) finalCoords = checkCoords;
         else break;
       }
       return finalCoords;
@@ -198,9 +200,9 @@ io.on('connection', (socket) => {
     if (data.data[newCoords.y][newCoords.x] < 0) { // if user is outside of the map he/she loses
       lose(emitData);
     } else {
-      io.emit('fly', emitData); // else he can move
+      io.emit("fly", emitData); // else he can move
     }
-  })
+  });
 
   // // io.emit(move, {}); // handle player movement
   // io.emit(lose, {}); // indicate if player died to display animation
@@ -212,8 +214,8 @@ io.on('connection', (socket) => {
   // io.emit(turn, {}); // rotate player - animation
   // io.emit(destroy_field, {}); // remove tile from map
 
-  socket.on('disconnect', () => {
-    io.emit('lose', socket.player);
-    console.log('player disconnected', socket.player);
+  socket.on("disconnect", () => {
+    io.emit("lose", socket.player);
+    console.log("player disconnected", socket.player);
   });
 });
