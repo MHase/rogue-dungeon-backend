@@ -49,6 +49,14 @@ function updateUserPosition(user, { x, y }) {
   };
 }
 
+function increasePlayersDeathCount(user) {
+  return {
+    ...user,
+    deathCount: user.deathCount += 1,
+  };
+}
+
+
 function findPlayerSocketIdByName(name) {
   return Object.keys(io.sockets.connected).find(socketID => {
     const player = io.sockets.connected[socketID].player;
@@ -90,6 +98,7 @@ io.on("connection", socket => {
       socket.player = { ...socket.player, ...defaultCoords };
       socket.emit("self_joined", socket.player);
       socket.broadcast.emit("user_joined", socket.player);
+      leaderboard();
     } else {
       // if he was shot
       const newPlayerData = {
@@ -123,14 +132,18 @@ io.on("connection", socket => {
 
     // socket.broadcast.emit('user_joined', newPlayerData); // lete everyone else spawn new player
   }
+  function leaderboard() {
+    io.emit("leaderboard", getAllPlayers());
+  }
 
   function lose(data) {
     const deadPlayer = io.sockets.connected[findPlayerSocketIdByName(data.name)].player;
     deadPlayer.deathCount += 1;
+
     io.emit("lose", data);
-    io.emit("leaderboard", getAllPlayers()); // TODO: handle it on frontend
+    leaderboard();
     setTimeout(() => {
-      addPlayer(data);
+      addPlayer(deadPlayer);
     }, 5000);
   }
 
@@ -242,6 +255,7 @@ io.on("connection", socket => {
 
   socket.on("disconnect", () => {
     io.emit("lose", socket.player);
+    leaderboard();
     console.log("player disconnected", socket.player);
   });
 });
