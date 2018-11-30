@@ -16,10 +16,9 @@ require("dotenv").config();
 // });
 // we will create standalone server on herokku
 
-console.log(process.env);
-
-server.listen(process.env.PORT || 8081, () => { // gives us any avaiable port provided by heroku or listens to port 8081
-  console.log('Listening on', server.address().port);
+server.listen(process.env.PORT || 8081, () => {
+  // gives us any avaiable port provided by heroku or listens to port 8081
+  console.log("Listening on", server.address().port);
 });
 
 server.lastPlayerID = -1; // Keep track of the last id assigned to a new player
@@ -60,31 +59,44 @@ function findPlayerSocketIdByName(name) {
 const defaultCoords = { x: 20, y: 20 };
 const hitDistance = 3;
 
-io.on('connection', (socket) => {
-  socket.on('get_map', () => {
-    socket.emit('map', data); // send map data
-    getAllPlayers().map(player => io.to(`${socket.id}`).emit('user_joined', player)); // spawn every other player before creating new one
+io.on("connection", socket => {
+  socket.on("get_map", () => {
+    socket.emit("map", data); // send map data
+    getAllPlayers().map(player =>
+      io.to(`${socket.id}`).emit("user_joined", player)
+    ); // spawn every other player before creating new one
 
-    socket.player = { // define new player object
-      id: server.lastPlayerID += 1,
+    socket.player = {
+      // define new player object
+      id: (server.lastPlayerID += 1),
       ...defaultCoords,
       speed: 220,
       last_move: moment(),
-      name: socket.request._query.name, // random name created on frontend side of app
+      deathCount: 0,
+      name: socket.request._query.name // random name created on frontend side of app
     };
 
     addPlayer(socket.player);
-  })
-  console.log(io.sockets.connected);
+  });
+
+  // setInterval( () => {
+  //   console.log(
+  //     getAllPlayers());
+  // }, 5000);
 
   function addPlayer(player) {
     if (player.name === socket.player.name) {
       // if player died because of himself
       socket.player = { ...socket.player, ...defaultCoords };
-      socket.emit('self_joined', socket.player);
-      socket.broadcast.emit('user_joined', socket.player);
-    } else { // if he was shot
-      const newPlayerData = { ...player, ...defaultCoords, last_move: moment() };
+      socket.emit("self_joined", socket.player);
+      socket.broadcast.emit("user_joined", socket.player);
+    } else {
+      // if he was shot
+      const newPlayerData = {
+        ...player,
+        ...defaultCoords,
+        last_move: moment()
+      };
       const newPlayerSocketId = findPlayerSocketIdByName(player.name);
       io.sockets.connected[newPlayerSocketId].player = newPlayerData;
 
@@ -113,8 +125,10 @@ io.on('connection', (socket) => {
   }
 
   function lose(data) {
-    console.log('lose', data);
-    io.emit('lose', data);
+    const deadPlayer = io.sockets.connected[findPlayerSocketIdByName(data.name)].player;
+    deadPlayer.deathCount += 1;
+    io.emit("lose", data);
+    io.emit("leaderboard", getAllPlayers()); // TODO: handle it on frontend
     setTimeout(() => {
       addPlayer(data);
     }, 5000);
@@ -167,7 +181,7 @@ io.on('connection', (socket) => {
   socket.on("hit", hitData => {
     const playerSockedId = findPlayerSocketIdByName(hitData.username);
     let user = io.sockets.connected[playerSockedId].player;
-    console.log(user);
+    // console.log(user);
     let newCoords = { x: user.x, y: user.y };
 
     const move_time = Math.round(100000 / (2 * (user.speed - 1) + 120));
@@ -191,13 +205,25 @@ io.on('connection', (socket) => {
         else break;
       }
       return finalCoords;
-    }
+    };
 
-    newCoords = _checkForObstacleLoop(newCoords, hitData.dir, (['n', 'w'].includes(hitData.dir)) ? -1 : 1);
+    newCoords = _checkForObstacleLoop(
+      newCoords,
+      hitData.dir,
+      ["n", "w"].includes(hitData.dir) ? -1 : 1
+    );
 
-    const emitData = { ...newCoords, name: user.name, move_time, speed: user.speed };
-    io.sockets.connected[playerSockedId].player = updateUserPosition(user, { ...newCoords })
-    if (data.data[newCoords.y][newCoords.x] < 0) { // if user is outside of the map he/she loses
+    const emitData = {
+      ...newCoords,
+      name: user.name,
+      move_time,
+      speed: user.speed
+    };
+    io.sockets.connected[playerSockedId].player = updateUserPosition(user, {
+      ...newCoords
+    });
+    if (data.data[newCoords.y][newCoords.x] < 0) {
+      // if user is outside of the map he/she loses
       lose(emitData);
     } else {
       io.emit("fly", emitData); // else he can move
