@@ -24,6 +24,20 @@ server.listen(process.env.PORT || 8081, () => {
 server.lastPlayerID = -1; // Keep track of the last id assigned to a new player
 // start counting from 0, so our array won't be empty at the beggining
 
+// (function() {
+//   var emit = io.emit,
+//     onevent = io.onevent;
+//
+//   io.emit = function() {
+//     console.log("***", "EMIT", Array.prototype.slice.call(arguments));
+//     emit.apply(io, arguments);
+//   };
+//   io.onevent = function(packet) {
+//     console.log("***", "ON", Array.prototype.slice.call(packet.data || []));
+//     onevent.apply(io, arguments);
+//   };
+// })();
+
 function getAllPlayers() {
   const players = [];
   Object.keys(io.sockets.connected).map(socketID => {
